@@ -1,10 +1,10 @@
-package up.mi.appli.td;
+package up.mi.appli.td6;
 
 import com.google.common.graph.*;
 
 public class Td6Guava {
     public static void main(String[] args) {
-        // Exemple inspré de la docs de Google Guava sur les graphs
+        // Exemple inspiré de la docs de Google Guava sur les graphs
         // Création de graphe orienté mutable
         MutableGraph<String> graph = GraphBuilder.directed().build();
         graph.addNode("a");

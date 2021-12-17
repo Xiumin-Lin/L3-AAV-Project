@@ -1,4 +1,4 @@
-package up.mi.appli.td;
+package up.mi.appli.td6;
 
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
