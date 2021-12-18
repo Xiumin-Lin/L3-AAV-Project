@@ -155,7 +155,7 @@ public class App {
         window.setVisible(true);
     }
 
-/*    //M�thode A*
+    //M�thode A*
     //graph: le graphe repr�sentant la carte
     //start: un entier repr�sentant la case de d�part
     //       (entier unique correspondant � la case obtenue dans le sens de la lecture)
@@ -169,26 +169,51 @@ public class App {
         graph.vertexlist.get(start).timeFromSource = 0;
         int number_tries = 0;
 
-        //TODO: mettre tous les noeuds du graphe dans la liste des noeuds � visiter:
+        //TODO: mettre tous les noeuds du graphe dans la liste des noeuds à visiter:
         HashSet<Integer> to_visit = new HashSet<>();
-
+        for(int i = 0; i < numberV; i++) {
+            to_visit.add(i);
+        }
         //TODO: Remplir l'attribut graph.vertexlist.get(v).heuristic pour tous les noeuds v du graphe:
-
+        int endX = graph.vertexlist.get(end).num / ncols;
+        int endY = graph.vertexlist.get(end).num % ncols;
+        for(int i = 0; i < graph.num_v; i++) {
+            int nodeX = graph.vertexlist.get(i).num / ncols;
+            int nodeY = graph.vertexlist.get(i).num % ncols;
+            graph.vertexlist.get(i).heuristic = Math.sqrt(Math.pow((endX - nodeX), 2) + Math.pow((endY - nodeY), 2));
+        }
 
         while(to_visit.contains(end)) {
             //TODO: trouver le noeud min_v parmis tous les noeuds v ayant la distance temporaire
             //      (graph.vertexlist.get(v).timeFromSource + heuristic) minimale.
-
+            int min_v = -1;
+            double minimal = Double.POSITIVE_INFINITY;
+            for(int v : to_visit) {
+                WeightedGraph.Vertex vertex = graph.vertexlist.get(v);
+                double tmpTimeFromSrc = vertex.timeFromSource + vertex.heuristic;
+                if(tmpTimeFromSrc < minimal) {
+                    minimal = tmpTimeFromSrc;
+                    min_v = v;
+                }
+            }
+            if(min_v == -1) {
+                System.out.println("Pas de solution !");
+                return null;
+            }
             //On l'enleve des noeuds à visiter
             to_visit.remove(min_v);
             number_tries += 1;
 
-            //TODO: pour tous ses voisins, on v�rifie si on est plus rapide en passant par ce noeud.
+            //TODO: pour tous ses voisins, on vérifie si on est plus rapide en passant par ce noeud.
             for(int i = 0; i < graph.vertexlist.get(min_v).adjacencylist.size(); i++) {
                 int to_try = graph.vertexlist.get(min_v).adjacencylist.get(i).destination;
-                //A completer
+                double weight = graph.vertexlist.get(min_v).adjacencylist.get(i).weight;
+                double newTimeFromSource = graph.vertexlist.get(min_v).timeFromSource + weight;
+                if(newTimeFromSource < graph.vertexlist.get(to_try).timeFromSource) {
+                    graph.vertexlist.get(to_try).timeFromSource = newTimeFromSource;
+                }
             }
-            //On met � jour l'affichage
+            //On met à jour l'affichage
             try {
                 board.update(graph, min_v);
                 Thread.sleep(10);
@@ -203,11 +228,22 @@ public class App {
         System.out.println("\tTotal time of the path: " + graph.vertexlist.get(end).timeFromSource);
         LinkedList<Integer> path = new LinkedList<>();
         path.addFirst(end);
-        //TODO: remplir la liste path avec le chemin
-
+        // remplir la liste path avec le chemin
+        int v = end;
+        double minTime = graph.vertexlist.get(v).timeFromSource;
+        while(v != start) {
+            for(WeightedGraph.Edge e : graph.vertexlist.get(v).adjacencylist) {
+                double neighBourTime = graph.vertexlist.get(e.destination).timeFromSource;
+                if(neighBourTime < minTime) {
+                    minTime = neighBourTime;
+                    v = e.destination;
+                }
+            }
+            path.addFirst(v);
+        }
         board.addPath(graph, path);
         return path;
-    }*/
+    }
 
     //Méthode Dijkstra
     //graph: le graphe représentant la carte
@@ -272,7 +308,7 @@ public class App {
         System.out.println("\tTotal time of the path: " + graph.vertexlist.get(end).timeFromSource);
         LinkedList<Integer> path = new LinkedList<>();
         path.addFirst(end);
-        //TODO: remplir la liste path avec le chemin
+        // remplir la liste path avec le chemin
         int v = end;
         double minTime = graph.vertexlist.get(v).timeFromSource;
         while(v != start) {
@@ -294,8 +330,8 @@ public class App {
         //Lecture de la carte et création du graphe
         try {
             //TODO: obtenir le fichier qui décrit la carte
-            System.out.println("Read file : graph.txt");
-            File myObj = new File("graph.txt");
+            System.out.println("Read file : graph3.txt");
+            File myObj = new File("graph3.txt");
             Scanner myReader = new Scanner(myObj);
             String data = "";
             //On ignore les deux premières lignes
@@ -389,9 +425,26 @@ public class App {
                 System.out.println("stop");
             }
 
-            //On appelle Dijkstra
-            LinkedList<Integer> path = Dijkstra(graph, startV, endV, nlines * ncols, board);
-            //TODO: laisser le choix entre Dijkstra et A*
+            int input = 0;
+            LinkedList<Integer> path = null;
+            do {
+                try {
+                    System.out.print("(1) Dijkstra\n(2) A*\n>>> ");
+                    Scanner sc = new Scanner(System.in);
+                    switch(sc.nextInt()) {
+                        case 1: //On appelle Dijkstra
+                            path = Dijkstra(graph, startV, endV, nlines * ncols, board);
+                            break;
+                        case 2: //On appelle A*
+                            path = AStar(graph, startV, endV, ncols, nlines * ncols, board);
+                            break;
+                        default:
+                            System.out.println("Choix invalide !");
+                    }
+                } catch(Exception e) {
+                    System.out.println(e.getMessage());
+                }
+            } while(path == null);
 
             //Ecriture du chemin dans un fichier de sortie
             try {
