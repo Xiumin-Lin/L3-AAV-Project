@@ -9,23 +9,28 @@ public class ExtractionMinMax {
         final int MAX_NUMBER = 100000;
         Map<Integer, Double[]> registre = new LinkedHashMap<>();
 
+        // on compare des listes de taille 2^size jusqu'à atteindre une taille > 550000
         for(int size = 2; size < LIMIT_SIZE; size *= 2) {
             int[] listForQuicksort = new int[size];
             int[] listForPriorityQ = new int[size];
             int randNumber;
             for(int i = 0; i < size; i++) {
                 randNumber = rand.nextInt(MAX_NUMBER);
-                listForQuicksort[i] = randNumber;
-                listForPriorityQ[i] = randNumber;
+                listForQuicksort[i] = randNumber;   // on cree 2 liste identiques
+                listForPriorityQ[i] = randNumber;   // avec des entiers positif aleatoire
             }
             Double[] list = new Double[2];
+            // pour comparait les extration de maximum
 //            list[0] = extrationMinQuickSort(listForQuicksort);
 //            list[1] = extrationMinPriorityQueue(listForPriorityQ);
+
+            // pour comparait les extration de minimum
             list[0] = extrationMaxQuickSort(listForQuicksort);
             list[1] = extrationMaxPriorityQueue(listForPriorityQ);
             registre.put(size, list);
         }
 
+        // affichage
         String separator = "\t\t\t\t";
         System.out.println("Extration de max :");
         System.out.println("Size" + separator + "QuickSort (ms)" + separator + "PriorityQueue (ms)");
@@ -33,12 +38,11 @@ public class ExtractionMinMax {
             System.out.println(entry.getKey() + separator + entry.getValue()[0]
                     + separator + entry.getValue()[1]);
         }
-
-
     }
 
     // Code pour le calcul du temps provient de StackOverFlow :
     // https://stackoverflow.com/questions/180158/how-do-i-time-a-methods-execution-in-java
+
     public static double extrationMinQuickSort(int[] list) {
         long startTime = System.nanoTime();
         Arrays.sort(list); // Quicksort de Java
