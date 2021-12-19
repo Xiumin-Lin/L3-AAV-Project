@@ -9,10 +9,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
 import java.io.*;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Scanner;
+import java.util.*;
 
 import static up.mi.appli.td7and8.WeightedGraph.Graph;
 
@@ -164,8 +161,9 @@ public class App {
     //ncols: le nombre de colonnes dans la carte
     //numberV: le nombre de cases dans la carte
     //board: l'affichage
+    //heuristicWeight: le poids de l'heuristique
     //retourne une liste d'entiers correspondant au chemin.
-    private static LinkedList<Integer> AStar(Graph graph, int start, int end, int ncols, int numberV, Board board) {
+    private static LinkedList<Integer> AStar(Graph graph, int start, int end, int ncols, int numberV, Board board, int heuristicWeight) {
         graph.vertexlist.get(start).timeFromSource = 0;
         int number_tries = 0;
 
@@ -180,7 +178,7 @@ public class App {
         for(int i = 0; i < graph.num_v; i++) {
             int nodeX = graph.vertexlist.get(i).num / ncols;
             int nodeY = graph.vertexlist.get(i).num % ncols;
-            graph.vertexlist.get(i).heuristic = Math.sqrt(Math.pow((endX - nodeX), 2) + Math.pow((endY - nodeY), 2));
+            graph.vertexlist.get(i).heuristic = Math.sqrt(Math.pow((endX - nodeX), 2) + Math.pow((endY - nodeY), 2)) * heuristicWeight;
         }
 
         while(to_visit.contains(end)) {
@@ -329,9 +327,12 @@ public class App {
     public static void main(String[] args) {
         //Lecture de la carte et création du graphe
         try {
-            //TODO: obtenir le fichier qui décrit la carte
-            System.out.println("Read file : graph3.txt");
-            File myObj = new File("graph3.txt");
+            // obtenir le fichier qui décrit la carte
+            System.out.print("Entrer le nom du fichier avec la carte : ");
+            Scanner sc = new Scanner(System.in);
+            String fileName = sc.nextLine();
+            System.out.println("Read file : " + fileName);
+            File myObj = new File(fileName);
             Scanner myReader = new Scanner(myObj);
             String data = "";
             //On ignore les deux premières lignes
@@ -376,30 +377,31 @@ public class App {
                     int source = line * ncols + col;
                     int dest;
                     double weight;
+                    double srcIndivTime = graph.vertexlist.get(source).indivTime;
                     //On donne la première arrête
-                    if(line > 0) {
-                        if(col > 0) {               // Non 1er ligne && Non 1er col
-                            dest = (line - 1) * ncols + col - 1;        // lié en haut à gauche
-                            weight = (graph.vertexlist.get(source).indivTime + graph.vertexlist.get(dest).indivTime) / 2;
-                            graph.addEgde(source, dest, weight);
-                            graph.addEgde(dest, source, weight);
+                    if(line > 0) {              // Si Non 1er ligne
+                        dest = (line - 1) * ncols + col;
+                        weight = (srcIndivTime + graph.vertexlist.get(dest).indivTime) / 2;
+                        graph.addEgde(source, dest, weight);        // arete vertical haut : source -> dest
+                        graph.addEgde(dest, source, weight);        // vice versa
+                        if(col > 0) {               // && Si Non 1er col
+                            dest = (line - 1) * ncols + col - 1;
+                            weight = (srcIndivTime + graph.vertexlist.get(dest).indivTime) / 2;
+                            graph.addEgde(source, dest, weight);    // arete diagonal haut & gauche : source -> dest
+                            graph.addEgde(dest, source, weight);    //vice versa
                         }
-                        dest = (line - 1) * ncols + col;                // lié en haut
-                        weight = (graph.vertexlist.get(source).indivTime + graph.vertexlist.get(dest).indivTime) / 2;
-                        graph.addEgde(source, dest, weight);
-                        graph.addEgde(dest, source, weight);
-                        if(col < ncols - 1) {      // Non 1er ligne && Non dernier col
-                            dest = (line - 1) * ncols + col + 1;        // lié en haut à droite
-                            weight = (graph.vertexlist.get(source).indivTime + graph.vertexlist.get(dest).indivTime) / 2;
-                            graph.addEgde(source, dest, weight);
-                            graph.addEgde(dest, source, weight);
+                        if(col < ncols - 1) {       // && Si Non dernier col
+                            dest = (line - 1) * ncols + col + 1;
+                            weight = (srcIndivTime + graph.vertexlist.get(dest).indivTime) / 2;
+                            graph.addEgde(source, dest, weight);    // arete diagonal haut & droite : source -> dest
+                            graph.addEgde(dest, source, weight);    // vice versa
                         }
                     }
-                    if(col < ncols - 1) {   // 1er ligne && Non dernier col
-                        dest = source + 1;                                 // lié à droite
-                        weight = (graph.vertexlist.get(source).indivTime + graph.vertexlist.get(dest).indivTime) / 2;
-                        graph.addEgde(source, dest, weight);
-                        graph.addEgde(dest, source, weight);
+                    if(col < ncols - 1) {       // Si 1er ligne && Non dernier col
+                        dest = source + 1;
+                        weight = (srcIndivTime + graph.vertexlist.get(dest).indivTime) / 2;
+                        graph.addEgde(source, dest, weight);        // arête horizontal droite : source -> dest
+                        graph.addEgde(dest, source, weight);        // vice versa
                     }
                 }
             }
@@ -429,22 +431,29 @@ public class App {
             LinkedList<Integer> path = null;
             do {
                 try {
-                    System.out.print("(1) Dijkstra\n(2) A*\n>>> ");
-                    Scanner sc = new Scanner(System.in);
+                    System.out.print("(1) Dijkstra\n(2) A*\n(3) Weighted A*\n>>> ");
                     switch(sc.nextInt()) {
                         case 1: //On appelle Dijkstra
                             path = Dijkstra(graph, startV, endV, nlines * ncols, board);
                             break;
                         case 2: //On appelle A*
-                            path = AStar(graph, startV, endV, ncols, nlines * ncols, board);
+                            path = AStar(graph, startV, endV, ncols, nlines * ncols, board, 0);
+                            break;
+                        case 3: //On appelle Weighted A*
+                            System.out.print("Entrer le poids de l'heurisque : ");
+                            path = AStar(graph, startV, endV, ncols, nlines * ncols, board, sc.nextInt());
                             break;
                         default:
-                            System.out.println("Choix invalide !");
+                            System.out.println("[Erreur] Choix invalide !");
                     }
+                } catch(InputMismatchException e) {
+                    System.out.println("[Erreur] Veuillez entrer un entier valide !");
+                    sc.nextLine();
                 } catch(Exception e) {
                     System.out.println(e.getMessage());
                 }
             } while(path == null);
+            sc.close();
 
             //Ecriture du chemin dans un fichier de sortie
             try {
