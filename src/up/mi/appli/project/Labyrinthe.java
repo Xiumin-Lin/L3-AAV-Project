@@ -22,9 +22,11 @@ public class Labyrinthe {
 
     public static void main(String[] args) {
         // Le labyrinthe: s’échapper d’Ayutthaya
+        double heuristicWeight = 1;
         System.out.print("Entrer le nom du fichier avec les entrees : ");
-        try(Scanner sc = new Scanner(System.in);
-            Scanner fileScanner = new Scanner(new File(sc.nextLine()))) {
+        try(Scanner sc = new Scanner(System.in); Scanner fileScanner = new Scanner(new File(sc.nextLine()))) {
+            System.out.print("Entrer le poids de l'heuristique (Ex : 2.5 ou 2,5 selon votre OS) : ");
+            heuristicWeight = sc.nextDouble();
             int t = fileScanner.nextInt(); // le nombre d'instance
 
             for(int numInstance = 0; numInstance < t; numInstance++) {
@@ -66,7 +68,7 @@ public class Labyrinthe {
                     }
                 }
                 // lancement de la recherche de solution
-                System.out.println(runInstance(map, n, m, false));
+                System.out.println(runInstance(map, n, m, heuristicWeight));
                 System.out.println(); // debug pour ameliorer l'affichage en separant les instances
             }
         } catch(Exception e) {
@@ -78,13 +80,14 @@ public class Labyrinthe {
     /**
      * Lance une resolution du labyrinthe donnee en parametre
      *
-     * @param map le labyrinthe a resoudre
-     * @param n   le nombre de ligne du labyrinthe
-     * @param m   le nombre de symbole par ligne du labyrinthe
+     * @param map             le labyrinthe a resoudre
+     * @param n               le nombre de ligne du labyrinthe
+     * @param m               le nombre de symbole par ligne du labyrinthe
+     * @param heuristicWeight le poids de l'heuristique pour l'algo A*
      * @return la valeur de {@link #WIN} si le prisonnier arrive a la sortie,
      * sinon retourne la valeur de {@link #LOSE}
      */
-    private static char runInstance(Graph map, int n, int m, Boolean useAStar) {
+    private static char runInstance(Graph map, int n, int m, double heuristicWeight) {
         int turn = 0;
         while(turn < n * m) {
             // on fait propager les flammes
@@ -93,11 +96,10 @@ public class Labyrinthe {
             }
             // les cases en feu marquent leurs cases voisines qui vont prendre feu au prochain tour
             for(int numV = 0; numV < n * m; numV++) {
-                if(map.vertexlist.get(numV).value == FIRE && burnAround(numV, n, m, map))
-                    return LOSE;
+                if(map.vertexlist.get(numV).value == FIRE && burnAround(numV, n, m, map)) return LOSE;
             }
             // au tour du prisonnier de se deplacer
-            boolean isWin = Boolean.TRUE.equals(useAStar) ? movePrisonerWithAStar(n, m, map) : movePrisonerNaive(n, m, map);
+            boolean isWin = movePrisonerWithAStar(n, m, map, heuristicWeight);
             if(isWin) return WIN;
             showMap(map, m); // debug afficher labyrinthe à chaque tour
             turn++;
@@ -111,9 +113,10 @@ public class Labyrinthe {
      * Si une case adjacents represent la sortie ({@link #END}) ou bien le prisonnier ({@link #PRISONER}),
      * alors la partie est terminée et le prisonnier a perdu.
      *
-     * @param n   le nombre de ligne du labyrinthe
-     * @param m   le nombre de symbole par ligne du labyrinthe
-     * @param map le labyrinthe
+     * @param numV le num de la case {@link #FIRE}
+     * @param n    le nombre de ligne du labyrinthe
+     * @param m    le nombre de symbole par ligne du labyrinthe
+     * @param map  le labyrinthe
      * @return true si l
      */
     private static boolean burnAround(int numV, int n, int m, Graph map) {
@@ -122,45 +125,56 @@ public class Labyrinthe {
         // Si la case actuel n'est pas sur la 1ere ligne,
         if(row > 0) { // alors sa case du haut va bruler au prochain tour s'il est libre
             int topVertex = (row - 1) * m + col;
-            if(map.vertexlist.get(topVertex).value == FREE) map.vertexlist.get(topVertex).value = NEXT_TO_BURN;
-            else if(map.vertexlist.get(topVertex).value == END || map.vertexlist.get(topVertex).value == PRISONER)
-                return true;
+            if(burn(map, topVertex)) return true;
         }
         // Si la case actuel n'est pas sur la dernire ligne
         if(row < n - 1) { // alors sa case du bas va bruler au prochain tour s'il est libre
             int bottomVertex = (row + 1) * m + col;
-            if(map.vertexlist.get(bottomVertex).value == FREE) map.vertexlist.get(bottomVertex).value = NEXT_TO_BURN;
-            else if(map.vertexlist.get(bottomVertex).value == END || map.vertexlist.get(bottomVertex).value == PRISONER)
-                return true;
+            if(burn(map, bottomVertex)) return true;
         }
         // Si la case actuel n'est pas sur la 1ere colonne
         if(col > 0) { // alors sa case de gauche va bruler au prochain tour s'il est libre
             int leftVertex = numV - 1;
-            if(map.vertexlist.get(leftVertex).value == FREE) map.vertexlist.get(leftVertex).value = NEXT_TO_BURN;
-            else if(map.vertexlist.get(leftVertex).value == END || map.vertexlist.get(leftVertex).value == PRISONER)
-                return true;
+            if(burn(map, leftVertex)) return true;
         }
         // Si la case actuel n'est pas sur la derniere colonne
         if(col < m - 1) { // alors sa case de droite va bruler au prochain tour s'il est libre
             int rightVertex = numV + 1;
-            if(map.vertexlist.get(rightVertex).value == FREE) map.vertexlist.get(rightVertex).value = NEXT_TO_BURN;
-            else
-                return map.vertexlist.get(rightVertex).value == END || map.vertexlist.get(rightVertex).value == PRISONER;
+            return burn(map, rightVertex);
         }
         return false;
     }
 
     /**
-     * // TODO
+     * @param map       le labyrinthe
+     * @param vertexNum le num du sommet a etre brulee
+     * @return true si la prochaine case a brulee est la case sortie ou bien celle du prisonnier
+     */
+    private static boolean burn(Graph map, int vertexNum) {
+        if(map.vertexlist.get(vertexNum).value == FREE) {
+            map.vertexlist.get(vertexNum).value = NEXT_TO_BURN;
+            // on met a jour le temps du sommet et le poids de ses aretes
+            map.vertexlist.get(vertexNum).indivTime = Double.POSITIVE_INFINITY;
+            // pour chaque arete du sommet brulee, on met a jour son poid
+            for(int edge = 0; edge < map.vertexlist.get(vertexNum).adjacencylist.size(); edge++) {
+                int dest = map.vertexlist.get(vertexNum).adjacencylist.get(edge).destination;
+                map.vertexlist.get(vertexNum).adjacencylist.get(edge).weight = (map.vertexlist.get(vertexNum).indivTime + map.vertexlist.get(dest).indivTime) / 2;
+            }
+        } else return map.vertexlist.get(vertexNum).value == END || map.vertexlist.get(vertexNum).value == PRISONER;
+        return false;
+    }
+
+    /**
      * Deplace le prisonnier sur une case adjacent de sa position si c'est possible.
      * Si une case adjacent est la sortie, retourne true sinon false
      *
-     * @param n   le nombre de ligne du labyrinthe
-     * @param m   le nombre de symbole par ligne du labyrinthe
-     * @param map le labyrinthe
+     * @param n               le nombre de ligne du labyrinthe
+     * @param m               le nombre de symbole par ligne du labyrinthe
+     * @param map             le labyrinthe
+     * @param heuristicWeight le poids de l'heuristique pour l'algo A*
      * @return true si le prisonnier a atteint la sortie
      */
-    private static boolean movePrisonerWithAStar(int n, int m, Graph map) {
+    private static boolean movePrisonerWithAStar(int n, int m, Graph map, double heuristicWeight) {
         int prisonerVertexNum = -1;
         int exitVertexNum = -1;
         // on recupere les position du prisonnier et de la sortie
@@ -171,70 +185,15 @@ public class Labyrinthe {
                 prisonerVertexNum = numV;
             }
         }
-        if(winMove(prisonerVertexNum, n, m, map)) return true;
-        if(prisonerVertexNum < 0 && exitVertexNum < 0) return false;
-        List<Integer> path = Algorithm.AStar(map, prisonerVertexNum, exitVertexNum, m, n * m, 1);
-        System.out.println(path); // debug
-
-        return false;
-    }
-
-    /**
-     * // TODO
-     * Deplace le prisonnier sur une case adjacent de sa position si c'est possible.
-     * Si une case adjacent est la sortie, retourne true sinon false
-     *
-     * @param n   le nombre de ligne du labyrinthe
-     * @param m   le nombre de symbole par ligne du labyrinthe
-     * @param map le labyrinthe
-     * @return true si le prisonnier a atteint la sortie
-     */
-    private static boolean movePrisonerNaive(int n, int m, Graph map) {
-        int prisonerVertexNum = -1;
-        int exitVertexNum = -1;
-        // on recupere les position du prisonnier et de la sortie
-        for(int numV = 0; numV < n * m; numV++) {
-            if(map.vertexlist.get(numV).value == END) {
-                exitVertexNum = numV;
-            } else if(map.vertexlist.get(numV).value == PRISONER) {
-                prisonerVertexNum = numV;
-            }
-        }
-        if(winMove(prisonerVertexNum, n, m, map)) return true;
-
-        int nbMove = canMove(prisonerVertexNum, n, m, map);
-
-        if(nbMove > 0) {
-            boolean top = canMoveDir(prisonerVertexNum, Direction.TOP, n, m, map);
-            boolean bottom = canMoveDir(prisonerVertexNum, Direction.BOT, n, m, map);
-            boolean left = canMoveDir(prisonerVertexNum, Direction.LEFT, n, m, map);
-            boolean right = canMoveDir(prisonerVertexNum, Direction.RIGHT, n, m, map);
-            int pRow = prisonerVertexNum / m;
-            int pCol = prisonerVertexNum % m;
-            int topVertexNum = (pRow - 1) * m + pCol;
-            int bottomVertexNum = (pRow + 1) * m + pCol;
-            int leftVertexNum = pRow * m - pCol;
-            int rightVertexNum = pRow * m + pCol;
-            if(nbMove == 1) {
-                map.vertexlist.get(pRow * m + pCol).value = PASSED; // Bloque la position actuelle pour ne plus y revenir
-                if(top) map.vertexlist.get(topVertexNum).value = PRISONER;
-                else if(bottom) map.vertexlist.get(bottomVertexNum).value = PRISONER;
-                else if(right) map.vertexlist.get(leftVertexNum).value = PRISONER;
-                else if(left) map.vertexlist.get(rightVertexNum).value = PRISONER;
-            } else {
-                int exitRow = exitVertexNum / m;
-                int exitCol = exitVertexNum % m;
-                int deltaRow = pRow - exitRow;
-                int deltaCol = pCol - exitCol;
-                if(deltaCol > 0 && left) map.vertexlist.get(leftVertexNum).value = PRISONER;
-                else if(deltaCol < 0 && right) map.vertexlist.get(rightVertexNum).value = PRISONER;
-                else if(deltaRow < 0 && bottom) map.vertexlist.get(bottomVertexNum).value = PRISONER;
-                else if(deltaRow > 0 && top) map.vertexlist.get(topVertexNum).value = PRISONER;
-                else if(top) map.vertexlist.get(topVertexNum).value = PRISONER;
-                else if(bottom) map.vertexlist.get(bottomVertexNum).value = PRISONER;
-                else if(right) map.vertexlist.get(rightVertexNum).value = PRISONER;
-                else if(left) map.vertexlist.get(leftVertexNum).value = PRISONER;
-                map.vertexlist.get(pRow * m + pCol).value = FREE;
+        if(prisonerVertexNum >= 0 && exitVertexNum >= 0) {
+            // on verifie si le prisonnier a cote de la sortie
+            if(winMove(prisonerVertexNum, n, m, map)) return true;
+            // sinon on utilise A star pour trouver un chemin
+            List<Integer> path = Algorithm.AStar(map, prisonerVertexNum, exitVertexNum, m, n * m, heuristicWeight);
+            if(path.size() > 1) {
+                map.vertexlist.get(path.get(1)).value = PRISONER;
+                map.vertexlist.get(prisonerVertexNum).value = FREE;
+                System.out.println(path); // debug
             }
         }
         return false;
@@ -256,49 +215,6 @@ public class Labyrinthe {
         boolean left = pCol > 0 && map.vertexlist.get(pRow * m + pCol - 1).value == END;
         boolean right = pCol < (m - 1) && map.vertexlist.get(pRow * m + pCol + 1).value == END;
         return top || left || right || bottom;
-    }
-
-    /**
-     * Retourne le nombre de directions possibles que peut prendre le prisonier
-     *
-     * @param n   le nombre de ligne du labyrinthe
-     * @param m   le nombre de symbole par ligne du labyrinthe
-     * @param map le labyrinthe
-     * @return le nombre de directions possibles que peut prendre le prisonier
-     */
-    private static int canMove(int pVertexNum, int n, int m, Graph map) {
-        int nbDir = 0;
-        if(canMoveDir(pVertexNum, Direction.TOP, n, m, map)) nbDir++;
-        if(canMoveDir(pVertexNum, Direction.BOT, n, m, map)) nbDir++;
-        if(canMoveDir(pVertexNum, Direction.LEFT, n, m, map)) nbDir++;
-        if(canMoveDir(pVertexNum, Direction.RIGHT, n, m, map)) nbDir++;
-        return nbDir;
-    }
-
-    /**
-     * Indique si le prisonnier peut se diriger dans la direction indiquée dans les params
-     *
-     * @param dir la direction a prendre
-     * @param n   le nombre de ligne du labyrinthe
-     * @param m   le nombre de symbole par ligne du labyrinthe
-     * @param map le labyrinthe
-     * @return true si il peut passer par la direction donnee sinon return false
-     */
-    private static boolean canMoveDir(int pVertexNum, Direction dir, int n, int m, Graph map) {
-        int pRow = pVertexNum / m;
-        int pCol = pVertexNum % m;
-        switch(dir) {
-            case TOP:
-                return pRow != 0 && map.vertexlist.get((pRow - 1) * m + pCol).value == FREE;
-            case BOT:
-                return pRow != (n - 1) && map.vertexlist.get((pRow + 1) * m + pCol).value == FREE;
-            case LEFT:
-                return pCol != 0 && map.vertexlist.get(pRow * m + pCol - 1).value == FREE;
-            case RIGHT:
-                return pCol != (m - 1) && map.vertexlist.get(pRow * m + pCol + 1).value == FREE;
-            default:
-                return false;
-        }
     }
 
     /**
